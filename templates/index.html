@@ -5,47 +5,23 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>WattWise - Electricity Bill Estimator</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <style>
-        body {
-            font-family: 'Inter', sans-serif;
-        }
-        /* Custom styles for a subtle transition */
-        .page {
-            transition: opacity 0.5s ease-in-out;
-        }
-        .hidden-page {
-            opacity: 0;
-            position: absolute;
-            pointer-events: none;
-        }
-        .visible-page {
-            opacity: 1;
-        }
-        /* Progress bar animation */
-        @keyframes progress-animation {
-            0% { width: 0%; }
-            100% { width: 100%; }
-        }
-        .progress-bar-inner {
-            animation: progress-animation 2s ease-out forwards;
-        }
-    </style>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
-<body class="bg-gray-50 text-gray-800">
+<body class="bg-slate-50 text-gray-800">
 
     <div class="container mx-auto p-4 sm:p-6 md:p-8 max-w-4xl">
         
-        <!-- Header -->
         <header class="text-center mb-8">
-            <h1 class="text-4xl md:text-5xl font-bold text-green-700">WattWise</h1>
+            <h1 class="text-4xl md:text-5xl font-bold gradient-text">WattWise</h1>
             <p class="text-gray-500 mt-2">Your Personal Energy Consumption Guide</p>
         </header>
 
-        <main class="relative">
-            <!-- PAGE 1: Main Input Page -->
+        <main class="relative overflow-hidden">
             <div id="main-page" class="page visible-page space-y-8 bg-white p-6 sm:p-8 rounded-2xl shadow-lg">
                 <div class="text-center">
                     <h2 class="text-2xl font-bold text-gray-900">Welcome to Wattwise</h2>
@@ -54,21 +30,24 @@
                     </p>
                 </div>
 
-                <div class="bg-green-50 p-4 rounded-lg text-sm text-green-800">
+                <div class="bg-green-50 p-4 rounded-lg text-sm text-green-800 border border-green-200">
                     <p>
-                        Wattwise provides instant, detailed electricity bill estimates based on the appliances in your home. Simply enter the name, wattage, and daily usage hours for each device. The app calculates your projected monthly bill and compares it to averages for similar homes and families, so you see exactly where you stand. After receiving your estimate, unlock a set of practical, personalized tips to help reduce your energy consumption and costs—all your data stays private and local. Enjoy a stress-free experience with a clean, green-inspired design that makes energy management convenient and intuitive.
+                        Wattwise provides instant, detailed electricity bill estimates based on the appliances in your home. Simply enter the name, wattage, power rating, and daily usage hours for each device.
                     </p>
                 </div>
 
-                <!-- Appliances Section -->
                 <div>
                     <h3 class="text-xl font-semibold text-gray-800 mb-4 border-b pb-2">Your Home Appliances</h3>
                     <div id="appliance-list" class="space-y-4">
-                        <!-- Initial Appliance Row -->
-                        <div class="appliance-item grid grid-cols-1 md:grid-cols-8 gap-3 items-center">
+                        <div class="appliance-item grid grid-cols-1 md:grid-cols-10 gap-3 items-center">
                             <input type="text" placeholder="Appliance Name (e.g., TV)" class="appliance-name md:col-span-3 p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent">
                             <input type="number" placeholder="Wattage (W)" class="appliance-wattage md:col-span-2 p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent">
-                            <input type="number" placeholder="Hours/Day" class="appliance-hours md:col-span-2 p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent" min="0" max="24" step="0.1">
+                            <select class="appliance-rating md:col-span-3 p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500">
+                                <option value="standard">Standard Efficiency</option>
+                                <option value="efficient">Energy Efficient</option>
+                                <option value="high_efficiency">High Efficiency (e.g. 5-Star)</option>
+                            </select>
+                            <input type="number" placeholder="Hrs/Day" class="appliance-hours md:col-span-1 p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent" min="0" max="24" step="0.1">
                             <button class="remove-appliance md:col-span-1 bg-red-500 text-white p-3 rounded-lg hover:bg-red-600 transition duration-300 font-bold hidden">X</button>
                         </div>
                     </div>
@@ -77,347 +56,104 @@
                     </button>
                 </div>
 
-                <!-- Household Info Section -->
                 <div>
                      <h3 class="text-xl font-semibold text-gray-800 mb-4 border-b pb-2">Household Information</h3>
-                     <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                     <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 gap-4">
                         <div>
-                            <label for="home-size" class="block text-sm font-medium text-gray-700 mb-1">Home Size</label>
-                            <select id="home-size" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent">
-                                <option value="small">Small (1-2 rooms)</option>
-                                <option value="medium" selected>Medium (3-4 rooms)</option>
-                                <option value="large">Large (5+ rooms)</option>
+                            <label for="country" class="block text-sm font-medium text-gray-700 mb-1">Country</label>
+                            <select id="country" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent">
+                                <option value="US">United States</option>
+                                <option value="IN" selected>India</option>
+                                <option value="DE">Germany</option>
+                                <option value="GB">United Kingdom</option>
                             </select>
                         </div>
                          <div>
-                            <label for="family-type" class="block text-sm font-medium text-gray-700 mb-1">Family Type</label>
-                            <select id="family-type" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent">
-                                <option value="single">Single / Couple</option>
-                                <option value="small-family" selected>Small Family (3-4)</option>
-                                <option value="large-family">Large Family (5+)</option>
-                            </select>
-                        </div>
-                        <div>
-                             <label for="electricity-rate" class="block text-sm font-medium text-gray-700 mb-1">Electricity Rate ($/kWh)</label>
-                             <input type="number" id="electricity-rate" value="0.15" step="0.01" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent">
+                             <label for="electricity-rate" class="block text-sm font-medium text-gray-700 mb-1">Electricity Rate (<span id="currency-symbol-rate">$</span>/kWh)</label>
+                             <input type="number" id="electricity-rate" value="0.17" step="0.01" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent">
                         </div>
                      </div>
                 </div>
 
-                <!-- Action Button -->
                 <div class="text-center pt-4">
-                    <button id="calculate-btn" class="w-full sm:w-auto bg-green-600 text-white font-bold text-lg py-3 px-12 rounded-full hover:bg-green-700 transition duration-300 transform hover:scale-105 shadow-md">
+                    <button id="calculate-btn" class="w-full sm:w-auto btn-primary text-white font-bold text-lg py-3 px-12 rounded-full hover:opacity-90 transition duration-300 transform hover:scale-105 shadow-md">
                         Estimate My Bill
                     </button>
                 </div>
                  <p id="error-message" class="text-red-500 text-center mt-4 hidden"></p>
             </div>
 
-            <!-- PAGE 2: Results Page -->
-            <div id="results-page" class="page hidden-page space-y-8 bg-white p-6 sm:p-8 rounded-2xl shadow-lg">
-                <!-- Progress Bar Container -->
+            <div id="results-page" class="page hidden-page space-y-6 bg-white p-6 sm:p-8 rounded-2xl shadow-lg">
                 <div id="progress-container" class="space-y-4">
                     <h2 class="text-2xl font-bold text-center text-gray-900">Calculating Your Estimate...</h2>
-                    <div class="w-full bg-gray-200 rounded-full h-4">
-                        <div id="progress-bar" class="bg-green-500 h-4 rounded-full progress-bar-inner"></div>
+                    <div class="w-full bg-gray-200 rounded-full h-6 overflow-hidden">
+                        <div id="progress-bar" class="bg-green-500 h-6 rounded-full flex items-center justify-center text-white text-sm"></div>
                     </div>
                     <p class="text-center text-gray-500">Analyzing your appliance usage.</p>
                 </div>
 
-                <!-- Results Display Container -->
-                <div id="results-container" class="hidden text-center space-y-6">
-                    <div>
-                        <h3 class="text-lg font-medium text-gray-600">Your Estimated Monthly Bill</h3>
-                        <p id="estimated-bill" class="text-5xl font-bold text-green-700 mt-2">$0.00</p>
-                    </div>
-
-                    <div class="bg-gray-100 p-6 rounded-lg">
-                        <h4 class="text-xl font-semibold text-gray-800 mb-4">How You Compare</h4>
-                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-left">
-                            <div class="bg-white p-4 rounded-lg border">
-                                <p class="font-medium text-gray-700">Avg. for Home Size</p>
-                                <p id="home-size-comparison" class="text-2xl font-bold text-gray-900 mt-1">$0.00</p>
-                                <p id="home-size-remark" class="text-sm text-gray-500 mt-1"></p>
-                            </div>
-                            <div class="bg-white p-4 rounded-lg border">
-                                <p class="font-medium text-gray-700">Avg. for Family Type</p>
-                                <p id="family-type-comparison" class="text-2xl font-bold text-gray-900 mt-1">$0.00</p>
-                                <p id="family-type-remark" class="text-sm text-gray-500 mt-1"></p>
+                <div id="results-display" class="hidden">
+                    <div id="results-content" class="space-y-6">
+                         <div>
+                            <h4 class="text-xl font-semibold text-gray-800 mb-4 text-center">Detailed Breakdown</h4>
+                            <div class="overflow-x-auto border rounded-lg">
+                                <table class="min-w-full divide-y divide-gray-200">
+                                    <thead class="bg-gray-50">
+                                        <tr>
+                                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Appliance</th>
+                                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Hours/Day</th>
+                                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cost/Month</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="bill-breakdown-body" class="bg-white divide-y divide-gray-200">
+                                        </tbody>
+                                </table>
                             </div>
                         </div>
-                    </div>
 
-                    <div class="flex flex-col sm:flex-row justify-center items-center gap-4 pt-4">
-                        <button id="view-suggestions-btn" class="w-full sm:w-auto bg-green-600 text-white font-bold py-3 px-8 rounded-full hover:bg-green-700 transition duration-300">
-                            View Savings Suggestions
-                        </button>
-                        <button id="start-over-btn-results" class="w-full sm:w-auto bg-gray-200 text-gray-800 font-bold py-3 px-8 rounded-full hover:bg-gray-300 transition duration-300">
-                            Start Over
-                        </button>
+                        <div class="bg-slate-50 p-6 rounded-lg border">
+                             <h4 class="text-xl font-semibold text-gray-800 mb-4 text-center">Bill Summary</h4>
+                             <div class="space-y-3 max-w-md mx-auto">
+                                 <div class="flex justify-between text-lg">
+                                     <span class="text-gray-600">Subtotal:</span>
+                                     <span id="subtotal-bill" class="font-medium text-gray-800"></span>
+                                 </div>
+                                 <div class="flex justify-between text-lg" id="tax-row">
+                                     <span class="text-gray-600">Tax (<span id="tax-rate-display"></span>%):</span>
+                                     <span id="tax-amount" class="font-medium text-gray-800"></span>
+                                 </div>
+                                 <hr class="my-2">
+                                 <div class="flex justify-between text-2xl font-bold">
+                                     <span class="text-gray-900">Total Estimated Bill:</span>
+                                     <span id="estimated-bill" class="text-green-700"></span>
+                                 </div>
+                             </div>
+                        </div>
+                    </div>
+                    
+                    <div class="flex flex-col sm:flex-row justify-center items-center gap-4 pt-6">
+                        <button id="view-suggestions-btn" class="w-full sm:w-auto btn-primary text-white font-bold py-3 px-8 rounded-full hover:opacity-90 transition">View Savings Suggestions</button>
+                        <button id="download-pdf-btn" class="w-full sm:w-auto bg-gray-600 text-white font-bold py-3 px-8 rounded-full hover:bg-gray-700 transition">Download as PDF</button>
+                        <button id="start-over-btn-results" class="w-full sm:w-auto bg-gray-200 text-gray-800 font-bold py-3 px-8 rounded-full hover:bg-gray-300 transition">Start Over</button>
                     </div>
                 </div>
             </div>
             
-            <!-- PAGE 3: Suggestions Page -->
             <div id="suggestions-page" class="page hidden-page space-y-8 bg-white p-6 sm:p-8 rounded-2xl shadow-lg">
                 <div class="text-center">
                     <h2 class="text-2xl font-bold text-gray-900">Personalized Savings Tips</h2>
-                    <p class="mt-2 text-gray-600">Here are some actionable tips based on your usage to help you save.</p>
+                    <p class="mt-2 text-gray-600">Here are actionable tips for your region and appliance usage to help you save.</p>
                 </div>
                 
-                <div id="suggestions-list" class="space-y-6">
-                    <!-- Suggestions will be dynamically inserted here -->
-                </div>
+                <div id="suggestions-list" class="space-y-6"></div>
 
                 <div class="text-center pt-4">
-                    <button id="back-to-results-btn" class="bg-green-600 text-white font-bold py-3 px-8 rounded-full hover:bg-green-700 transition duration-300">
-                        Back to My Estimate
-                    </button>
+                    <button id="back-to-results-btn" class="btn-primary text-white font-bold py-3 px-8 rounded-full hover:opacity-90 transition">Back to My Estimate</button>
                 </div>
             </div>
         </main>
-
     </div>
 
-    <script>
-        document.addEventListener('DOMContentLoaded', function () {
-            // Page elements
-            const mainPage = document.getElementById('main-page');
-            const resultsPage = document.getElementById('results-page');
-            const suggestionsPage = document.getElementById('suggestions-page');
-
-            // Buttons
-            const addApplianceBtn = document.getElementById('add-appliance-btn');
-            const calculateBtn = document.getElementById('calculate-btn');
-            const viewSuggestionsBtn = document.getElementById('view-suggestions-btn');
-            const startOverBtnResults = document.getElementById('start-over-btn-results');
-            const backToResultsBtn = document.getElementById('back-to-results-btn');
-
-            // Dynamic content elements
-            const applianceList = document.getElementById('appliance-list');
-            const errorMessage = document.getElementById('error-message');
-
-            // Results elements
-            const progressContainer = document.getElementById('progress-container');
-            const resultsContainer = document.getElementById('results-container');
-            const estimatedBillEl = document.getElementById('estimated-bill');
-            const homeSizeComparisonEl = document.getElementById('home-size-comparison');
-            const familyTypeComparisonEl = document.getElementById('family-type-comparison');
-            const homeSizeRemarkEl = document.getElementById('home-size-remark');
-            const familyTypeRemarkEl = document.getElementById('family-type-remark');
-            
-            // Suggestions element
-            const suggestionsList = document.getElementById('suggestions-list');
-
-            // --- NAVIGATION ---
-            function showPage(pageToShow) {
-                [mainPage, resultsPage, suggestionsPage].forEach(page => {
-                    if (page.id === pageToShow.id) {
-                        page.classList.remove('hidden-page');
-                        page.classList.add('visible-page');
-                    } else {
-                        page.classList.add('hidden-page');
-                        page.classList.remove('visible-page');
-                    }
-                });
-            }
-
-            // --- APPLIANCE MANAGEMENT ---
-            function updateRemoveButtons() {
-                const applianceItems = applianceList.querySelectorAll('.appliance-item');
-                applianceItems.forEach((item, index) => {
-                    const removeBtn = item.querySelector('.remove-appliance');
-                    if (applianceItems.length > 1) {
-                        removeBtn.classList.remove('hidden');
-                    } else {
-                        removeBtn.classList.add('hidden');
-                    }
-                });
-            }
-
-            const createApplianceRow = () => {
-                const div = document.createElement('div');
-                div.className = 'appliance-item grid grid-cols-1 md:grid-cols-8 gap-3 items-center';
-                div.innerHTML = `
-                    <input type="text" placeholder="Appliance Name (e.g., Fridge)" class="appliance-name md:col-span-3 p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent">
-                    <input type="number" placeholder="Wattage (W)" class="appliance-wattage md:col-span-2 p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent">
-                    <input type="number" placeholder="Hours/Day" class="appliance-hours md:col-span-2 p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent" min="0" max="24" step="0.1">
-                    <button class="remove-appliance md:col-span-1 bg-red-500 text-white p-3 rounded-lg hover:bg-red-600 transition duration-300 font-bold">X</button>
-                `;
-                applianceList.appendChild(div);
-                updateRemoveButtons();
-            };
-            
-            addApplianceBtn.addEventListener('click', createApplianceRow);
-
-            applianceList.addEventListener('click', (e) => {
-                if (e.target && e.target.classList.contains('remove-appliance')) {
-                    e.target.closest('.appliance-item').remove();
-                    updateRemoveButtons();
-                }
-            });
-            
-            updateRemoveButtons(); // Initial check
-
-            // --- CALCULATION LOGIC ---
-            calculateBtn.addEventListener('click', () => {
-                errorMessage.classList.add('hidden');
-                let isValid = true;
-                const appliances = [];
-                const applianceItems = applianceList.querySelectorAll('.appliance-item');
-
-                applianceItems.forEach(item => {
-                    const name = item.querySelector('.appliance-name').value.trim();
-                    const wattage = parseFloat(item.querySelector('.appliance-wattage').value);
-                    const hours = parseFloat(item.querySelector('.appliance-hours').value);
-
-                    if (name && wattage > 0 && hours >= 0 && hours <= 24) {
-                        appliances.push({ name, wattage, hours });
-                    } else if (name || !isNaN(wattage) || !isNaN(hours)) {
-                        isValid = false;
-                    }
-                });
-
-                if (!isValid || appliances.length === 0) {
-                    errorMessage.textContent = 'Please fill all fields correctly for at least one appliance.';
-                    errorMessage.classList.remove('hidden');
-                    return;
-                }
-
-                showPage(resultsPage);
-                progressContainer.classList.remove('hidden');
-                resultsContainer.classList.add('hidden');
-                document.getElementById('progress-bar').style.width = '0%';
-                
-                // Trigger animation
-                setTimeout(() => {
-                     document.getElementById('progress-bar').classList.add('progress-bar-inner');
-                }, 100);
-
-                // Simulate calculation delay
-                setTimeout(() => {
-                    const rate = parseFloat(document.getElementById('electricity-rate').value) || 0.15;
-                    let totalKwh = 0;
-                    appliances.forEach(app => {
-                        totalKwh += (app.wattage * app.hours * 30) / 1000;
-                    });
-                    const totalBill = totalKwh * rate;
-
-                    estimatedBillEl.textContent = `$${totalBill.toFixed(2)}`;
-                    
-                    // Comparison logic
-                    const homeSize = document.getElementById('home-size').value;
-                    const familyType = document.getElementById('family-type').value;
-
-                    const homeAverages = { small: 75, medium: 120, large: 200 };
-                    const familyAverages = { single: 60, 'small-family': 130, 'large-family': 220 };
-
-                    const homeAvgBill = homeAverages[homeSize];
-                    const familyAvgBill = familyAverages[familyType];
-
-                    homeSizeComparisonEl.textContent = `$${homeAvgBill.toFixed(2)}`;
-                    familyTypeComparisonEl.textContent = `$${familyAvgBill.toFixed(2)}`;
-
-                    homeSizeRemarkEl.textContent = totalBill > homeAvgBill ? 'Higher than average' : 'Lower than average';
-                    familyTypeRemarkEl.textContent = totalBill > familyAvgBill ? 'Higher than average' : 'Lower than average';
-                    
-                    homeSizeRemarkEl.className = `text-sm mt-1 ${totalBill > homeAvgBill ? 'text-red-500' : 'text-green-600'}`;
-                    familyTypeRemarkEl.className = `text-sm mt-1 ${totalBill > familyAvgBill ? 'text-red-500' : 'text-green-600'}`;
-
-
-                    // Generate suggestions
-                    generateSuggestions(appliances, totalBill);
-
-                    progressContainer.classList.add('hidden');
-                    resultsContainer.classList.remove('hidden');
-                    document.getElementById('progress-bar').classList.remove('progress-bar-inner');
-                }, 2200);
-            });
-
-            // --- SUGGESTIONS LOGIC ---
-            function generateSuggestions(appliances, totalBill) {
-                suggestionsList.innerHTML = ''; // Clear previous suggestions
-                const tips = [];
-                const highWattageAppliances = appliances.filter(a => a.wattage > 1500);
-                const longUsageAppliances = appliances.filter(a => a.hours > 8);
-
-                // Generic high-impact tips
-                if (totalBill > 150) {
-                    tips.push({
-                        title: 'Conduct a Home Energy Audit',
-                        impact: 'High',
-                        description: 'Consider a professional energy audit to find air leaks, insulation gaps, and other major sources of energy waste in your home.'
-                    });
-                }
-                 tips.push({
-                    title: 'Unplug Electronics When Not in Use',
-                    impact: 'Medium',
-                    description: 'Many devices, like chargers and TVs, draw "phantom power" even when off. Unplug them or use a smart power strip to cut this waste.'
-                });
-
-                // Appliance-specific tips
-                if (highWattageAppliances.length > 0) {
-                    const applianceNames = highWattageAppliances.map(a => a.name).join(', ');
-                    tips.push({
-                        title: `Manage High-Wattage Appliances (${applianceNames})`,
-                        impact: 'High',
-                        description: 'Appliances like heaters, dryers, and ovens use a lot of power. Try to use them during off-peak hours if your utility offers lower rates, and avoid running them simultaneously.'
-                    });
-                }
-                
-                if (appliances.some(a => a.name.toLowerCase().includes('light') || a.name.toLowerCase().includes('bulb'))) {
-                     tips.push({
-                        title: 'Switch to LED Lighting',
-                        impact: 'High',
-                        description: 'LED bulbs use up to 80% less energy and last much longer than traditional incandescent bulbs. This is one of the easiest and most effective changes you can make.'
-                    });
-                }
-
-                if (longUsageAppliances.length > 0) {
-                    const applianceNames = longUsageAppliances.map(a => a.name).join(', ');
-                     tips.push({
-                        title: `Optimize Long-Usage Devices (${applianceNames})`,
-                        impact: 'Medium',
-                        description: 'For devices that run many hours a day, ensure they are energy-efficient models. Enable power-saving modes on computers and gaming consoles.'
-                    });
-                }
-                
-                if (appliances.some(a => a.name.toLowerCase().includes('fridge') || a.name.toLowerCase().includes('refrigerator'))) {
-                    tips.push({
-                        title: 'Check Refrigerator Seals',
-                        impact: 'Medium',
-                        description: 'Ensure your refrigerator door seals are tight. A leaky seal makes the compressor work harder. Also, keep it full (but not over-packed) to maintain its temperature efficiently.'
-                    });
-                }
-                
-                // Render suggestions
-                if (tips.length === 0) {
-                    suggestionsList.innerHTML = '<p class="text-center text-gray-600">Your energy usage is quite efficient! Keep up the great work.</p>';
-                } else {
-                    tips.forEach(tip => {
-                        const impactColor = tip.impact === 'High' ? 'bg-red-100 text-red-800' : 'bg-yellow-100 text-yellow-800';
-                        const tipElement = document.createElement('div');
-                        tipElement.className = 'bg-gray-50 p-4 rounded-lg border';
-                        tipElement.innerHTML = `
-                            <div class="flex justify-between items-center">
-                                <h4 class="text-lg font-semibold text-gray-900">${tip.title}</h4>
-                                <span class="text-sm font-medium px-2.5 py-0.5 rounded-full ${impactColor}">${tip.impact} Impact</span>
-                            </div>
-                            <p class="mt-2 text-gray-600">${tip.description}</p>
-                        `;
-                        suggestionsList.appendChild(tipElement);
-                    });
-                }
-            }
-
-            // --- EVENT LISTENERS FOR NAVIGATION ---
-            viewSuggestionsBtn.addEventListener('click', () => showPage(suggestionsPage));
-            backToResultsBtn.addEventListener('click', () => showPage(resultsPage));
-            startOverBtnResults.addEventListener('click', () => {
-                // Could also clear the form here if desired
-                showPage(mainPage);
-            });
-        });
-    </script>
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
 </body>
 </html>
