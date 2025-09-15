@@ -334,17 +334,23 @@
         // --- STATE & LOCAL STORAGE ---
         function loadStateFromStorage() {
             const storedProfileName = localStorage.getItem('wattwise_currentProfile') || 'Default';
+            const freshData = { annual: [], summer: [], winter: [] };
             if (state.profiles[storedProfileName]) {
-                state.seasonalData = state.profiles[storedProfileName];
+                // Use deep copy and merge with fresh data to ensure all seasons exist
+                state.seasonalData = { ...freshData, ...JSON.parse(JSON.stringify(state.profiles[storedProfileName])) };
                 state.currentProfileName = storedProfileName;
             } else {
-                 state.profiles[storedProfileName] = JSON.parse(JSON.stringify(state.seasonalData)); // Deep copy
+                // If profile doesn't exist (e.g., first load), create it
+                state.profiles[storedProfileName] = JSON.parse(JSON.stringify(freshData));
+                state.seasonalData = JSON.parse(JSON.stringify(freshData));
+                state.currentProfileName = storedProfileName;
             }
         }
         
         function saveStateToStorage() {
             saveCurrentAppliances();
-            state.profiles[state.currentProfileName] = state.seasonalData;
+            // Deep copy to prevent reference issues
+            state.profiles[state.currentProfileName] = JSON.parse(JSON.stringify(state.seasonalData));
             localStorage.setItem('wattwise_profiles', JSON.stringify(state.profiles));
             localStorage.setItem('wattwise_currentProfile', state.currentProfileName);
             localStorage.setItem('wattwise_estimates', JSON.stringify(state.savedEstimates));
@@ -390,8 +396,8 @@
         
         function renderApplianceList() {
             applianceListContainer.innerHTML = '';
-            const currentList = state.seasonalData[state.currentSeason];
-            if (currentList && currentList.length > 0) {
+            const currentList = state.seasonalData[state.currentSeason] || [];
+            if (currentList.length > 0) {
                 currentList.forEach(app => createApplianceRow(app.name, app.wattage, app.rating, app.hours));
             } else {
                 createApplianceRow();
@@ -732,7 +738,10 @@
                  if (name) {
                      saveCurrentAppliances();
                      state.currentProfileName = name;
-                     saveStateToStorage();
+                     // Deep copy the current data to the new profile name
+                     state.profiles[state.currentProfileName] = JSON.parse(JSON.stringify(state.seasonalData));
+                     localStorage.setItem('wattwise_profiles', JSON.stringify(state.profiles));
+                     localStorage.setItem('wattwise_currentProfile', state.currentProfileName);
                      profileModal.classList.remove('active');
                  }
              };
@@ -759,7 +768,13 @@
                     const nameToDelete = e.target.dataset.name;
                     if(nameToDelete && nameToDelete !== 'Default') {
                         delete state.profiles[nameToDelete];
-                        saveStateToStorage();
+                        if (state.currentProfileName === nameToDelete) {
+                            state.currentProfileName = 'Default';
+                            localStorage.setItem('wattwise_currentProfile', 'Default');
+                            loadStateFromStorage();
+                            renderApplianceList();
+                        }
+                        localStorage.setItem('wattwise_profiles', JSON.stringify(state.profiles));
                         openLoadProfileModal(); // Re-render modal
                     }
                 });
@@ -767,13 +782,16 @@
 
              profileModalConfirm.onclick = () => {
                  const selected = profileModalBody.querySelector('input[name="profile"]:checked');
-                 if (selected) {
-                     state.currentProfileName = selected.value;
-                     localStorage.setItem('wattwise_currentProfile', state.currentProfileName);
-                     loadStateFromStorage();
-                     renderApplianceList();
-                     profileModal.classList.remove('active');
+                 if (selected && state.currentProfileName !== selected.value) {
+                    saveCurrentAppliances();
+                    state.profiles[state.currentProfileName] = JSON.parse(JSON.stringify(state.seasonalData));
+                    
+                    state.currentProfileName = selected.value;
+                    localStorage.setItem('wattwise_currentProfile', state.currentProfileName);
+                    loadStateFromStorage();
+                    renderApplianceList();
                  }
+                 profileModal.classList.remove('active');
              };
         }
         
@@ -800,4 +818,3 @@
     </script>
 </body>
 </html>
-
