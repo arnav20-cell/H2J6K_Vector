@@ -1,0 +1,803 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WattWise - Advanced Energy Estimator</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .page { display: none; opacity: 0; transition: opacity 0.5s ease-in-out; }
+        .page.active { display: block; opacity: 1; }
+        @keyframes progress-animation { from { width: 0%; } to { width: 100%; } }
+        .progress-bar-inner { animation: progress-animation 2s ease-out forwards; }
+        .gradient-text { background: linear-gradient(to right, #228B22, #006400); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        .btn-primary { background-image: linear-gradient(to right, #228B22, #006400); }
+        .tab-btn { transition: all 0.3s ease; }
+        .tab-btn.active { border-color: #228B22; background-color: #f0fff4; color: #228B22; font-weight: 600; }
+        .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 999; display: flex; align-items: center; justify-content: center; opacity: 0; pointer-events: none; transition: opacity 0.3s ease; }
+        .modal-overlay.active { opacity: 1; pointer-events: auto; }
+        .modal-content { background: white; padding: 2rem; border-radius: 1rem; width: 90%; max-width: 500px; transform: scale(0.95); transition: transform 0.3s ease; }
+        .modal-overlay.active .modal-content { transform: scale(1); }
+        .loader { border: 4px solid #f3f3f3; border-top: 4px solid #228B22; border-radius: 50%; width: 24px; height: 24px; animation: spin 1s linear infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
+</head>
+<body class="bg-slate-50 text-gray-800">
+
+    <div class="container mx-auto p-4 sm:p-6 md:p-8 max-w-5xl">
+        <header class="text-center mb-8">
+            <h1 class="text-4xl md:text-5xl font-bold gradient-text">WattWise</h1>
+            <p class="text-gray-500 mt-2">Your Advanced Energy Management Hub</p>
+        </header>
+
+        <nav class="flex justify-center mb-6 border-b">
+            <button data-page="main-page" class="nav-btn p-4 font-semibold border-b-2 border-green-600 text-green-600">Estimator</button>
+            <button data-page="comparison-page" class="nav-btn p-4 font-semibold border-b-2 border-transparent text-gray-500">Compare Estimates</button>
+        </nav>
+
+        <main>
+            <!-- PAGE 1: Main Input Page -->
+            <div id="main-page" class="page active space-y-8">
+                <!-- Profile Management -->
+                <div class="bg-white p-6 rounded-2xl shadow-lg flex flex-col sm:flex-row justify-between items-center gap-4">
+                    <div class="text-center sm:text-left">
+                        <h3 class="text-xl font-semibold text-gray-800">Household Profile</h3>
+                        <p class="text-gray-600">Save and load your appliance settings.</p>
+                    </div>
+                    <div class="flex gap-2">
+                        <button id="load-profile-btn" class="bg-gray-200 text-gray-800 font-semibold py-2 px-4 rounded-lg hover:bg-gray-300">Load</button>
+                        <button id="save-profile-btn" class="bg-green-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-green-700">Save</button>
+                    </div>
+                </div>
+
+                <div class="bg-white p-6 sm:p-8 rounded-2xl shadow-lg space-y-8">
+                    <!-- Seasonal Profiles -->
+                    <div>
+                        <h3 class="text-xl font-semibold text-gray-800 mb-4">Select Seasonal Profile</h3>
+                        <div class="flex border border-gray-200 rounded-lg p-1 space-x-1 bg-gray-100">
+                            <button class="tab-btn active w-full py-2 rounded-md" data-season="annual">Annual Average</button>
+                            <button class="tab-btn w-full py-2 rounded-md" data-season="summer">Summer</button>
+                            <button class="tab-btn w-full py-2 rounded-md" data-season="winter">Winter</button>
+                        </div>
+                    </div>
+
+                    <!-- Appliances Section -->
+                    <div>
+                        <h3 class="text-xl font-semibold text-gray-800 mb-4 border-b pb-2">Your Home Appliances</h3>
+                        <div id="appliance-list" class="space-y-4">
+                            <!-- JS will populate this -->
+                        </div>
+                        <button id="add-appliance-btn" class="mt-4 bg-green-200 text-green-800 font-semibold py-2 px-4 rounded-lg hover:bg-green-300">
+                            + Add Another Appliance
+                        </button>
+                    </div>
+                    <datalist id="appliance-suggestions"></datalist>
+
+                    <!-- Phantom Load Section -->
+                    <div>
+                        <h3 class="text-xl font-semibold text-gray-800 mb-4 border-b pb-2">Phantom & Standby Load</h3>
+                        <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                            <label class="flex items-center space-x-2"><input type="checkbox" class="phantom-device" value="5"><span>TV/Monitor</span></label>
+                            <label class="flex items-center space-x-2"><input type="checkbox" class="phantom-device" value="2"><span>Phone Chargers</span></label>
+                            <label class="flex items-center space-x-2"><input type="checkbox" class="phantom-device" value="10"><span>Game Console</span></label>
+                            <label class="flex items-center space-x-2"><input type="checkbox" class="phantom-device" value="3"><span>Microwave/Oven</span></label>
+                        </div>
+                    </div>
+
+                    <!-- Household Info & Tiered Rates -->
+                    <div>
+                        <h3 class="text-xl font-semibold text-gray-800 mb-4 border-b pb-2">Household & Billing Information</h3>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div>
+                                <label for="country" class="block text-sm font-medium text-gray-700 mb-1">Country</label>
+                                <select id="country" class="w-full p-3 border border-gray-300 rounded-lg"></select>
+                            </div>
+                            <div>
+                                <h4 class="text-sm font-medium text-gray-700 mb-1">Electricity Rate Tiers (<span id="currency-symbol-rate"></span>/kWh)</h4>
+                                <div id="rate-tiers-container" class="space-y-2">
+                                    <!-- JS will populate this -->
+                                </div>
+                                <button id="add-tier-btn" class="text-sm mt-2 text-green-600 hover:text-green-800 font-semibold">+ Add Tier</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="text-center pt-4">
+                        <button id="calculate-btn" class="w-full sm:w-auto btn-primary text-white font-bold text-lg py-3 px-12 rounded-full hover:opacity-90 transition transform hover:scale-105 shadow-md">
+                            Estimate My Bill
+                        </button>
+                    </div>
+                    <p id="error-message" class="text-red-500 text-center mt-4 hidden"></p>
+                </div>
+            </div>
+
+            <!-- PAGE 2: Results Page -->
+            <div id="results-page" class="page space-y-6">
+                 <div id="progress-container" class="bg-white p-8 rounded-2xl shadow-lg space-y-4">
+                    <h2 class="text-2xl font-bold text-center text-gray-900">Calculating Your Estimate...</h2>
+                    <div class="w-full bg-gray-200 rounded-full h-6"><div id="progress-bar" class="bg-green-500 h-6 rounded-full progress-bar-inner flex items-center justify-center text-white text-sm"></div></div>
+                </div>
+
+                <div id="results-display" class="hidden space-y-8">
+                    <div id="results-content" class="bg-white p-6 sm:p-8 rounded-2xl shadow-lg space-y-8">
+                        <div class="grid grid-cols-1 lg:grid-cols-5 gap-8">
+                            <!-- Detailed Breakdown -->
+                            <div class="lg:col-span-3 space-y-4">
+                                <h4 class="text-xl font-semibold text-gray-800 text-center">Energy Cost Breakdown</h4>
+                                <div id="bill-breakdown-container" class="overflow-x-auto">
+                                    <!-- JS will create a table here -->
+                                </div>
+                            </div>
+                            <!-- Summary -->
+                            <div class="lg:col-span-2 bg-slate-50 p-6 rounded-lg border flex flex-col justify-center">
+                                 <h4 class="text-xl font-semibold text-gray-800 mb-4 text-center">Bill Summary</h4>
+                                 <div class="space-y-3">
+                                     <div class="flex justify-between text-lg"><span class="text-gray-600">Subtotal:</span><span id="subtotal-bill" class="font-medium"></span></div>
+                                     <div class="flex justify-between text-lg" id="tax-row"><span class="text-gray-600">Tax (<span id="tax-rate-display"></span>%):</span><span id="tax-amount" class="font-medium"></span></div>
+                                     <hr class="my-2">
+                                     <div class="flex justify-between text-2xl font-bold"><span class="text-gray-900">Total Estimate:</span><span id="estimated-bill" class="text-green-700"></span></div>
+                                 </div>
+                                 <hr class="my-4">
+                                 <div class="space-y-2">
+                                    <h4 class="text-md font-semibold text-gray-700 text-center">Carbon Footprint</h4>
+                                    <p class="text-center text-2xl font-bold text-gray-800" id="carbon-footprint"></p>
+                                 </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="flex flex-wrap justify-center items-center gap-4">
+                        <button id="view-savings-goal-btn" class="btn-primary text-white font-bold py-3 px-8 rounded-full hover:opacity-90">Set Savings Goal</button>
+                        <button id="view-suggestions-btn" class="btn-primary text-white font-bold py-3 px-8 rounded-full hover:opacity-90">View Savings Tips</button>
+                        <button id="save-estimate-btn" class="bg-blue-600 text-white font-bold py-3 px-8 rounded-full hover:bg-blue-700">Save Estimate</button>
+                        <button id="download-pdf-btn" class="bg-gray-600 text-white font-bold py-3 px-8 rounded-full hover:bg-gray-700">Download PDF</button>
+                        <button id="start-over-btn-results" class="bg-gray-200 text-gray-800 font-bold py-3 px-8 rounded-full hover:bg-gray-300">Start Over</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- PAGE 3: Savings Goal Page -->
+            <div id="savings-goal-page" class="page space-y-8 bg-white p-6 sm:p-8 rounded-2xl shadow-lg">
+                <div class="text-center"><h2 class="text-2xl font-bold text-gray-900">Set Your Savings Goal</h2></div>
+                <div class="space-y-3 max-w-lg mx-auto">
+                    <div class="flex items-center gap-4">
+                        <span id="savings-goal-min" class="font-semibold text-gray-600"></span>
+                        <input type="range" id="savings-goal-slider" class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
+                        <span id="savings-goal-max" class="font-semibold text-gray-600"></span>
+                    </div>
+                    <p class="text-center">Your Goal: <span id="savings-goal-value" class="font-bold text-green-700"></span></p>
+                    <div class="w-full bg-gray-200 rounded-full h-4 relative">
+                        <div id="savings-goal-bar" class="bg-green-500 h-4 rounded-full" style="width: 0%;"></div>
+                        <div id="savings-goal-marker" class="absolute top-0 h-4 w-1 bg-red-500" style="left: 50%;"></div>
+                    </div>
+                    <p id="savings-status" class="text-center font-semibold pt-2"></p>
+                </div>
+                <div class="text-center pt-4"><button id="back-to-results-btn-from-goal" class="btn-primary text-white font-bold py-3 px-8 rounded-full hover:opacity-90">Back to My Estimate</button></div>
+            </div>
+            
+            <!-- PAGE 4: Suggestions Page -->
+            <div id="suggestions-page" class="page space-y-8 bg-white p-6 sm:p-8 rounded-2xl shadow-lg">
+                <div class="text-center">
+                    <h2 class="text-2xl font-bold text-gray-900">Personalized Savings Tips</h2>
+                </div>
+                <!-- Standard Tips -->
+                <div class="space-y-4">
+                    <h3 class="text-xl font-semibold text-gray-800">Standard Recommendations</h3>
+                    <div id="suggestions-list" class="space-y-6"></div>
+                </div>
+
+                <div class="text-center pt-4"><button id="back-to-results-btn" class="btn-primary text-white font-bold py-3 px-8 rounded-full hover:opacity-90">Back to My Estimate</button></div>
+            </div>
+
+            <!-- PAGE 5: Comparison Page -->
+            <div id="comparison-page" class="page">
+                <div class="bg-white p-6 sm:p-8 rounded-2xl shadow-lg">
+                    <h2 class="text-2xl font-bold text-gray-900 mb-4">Saved Estimate Comparison</h2>
+                    <div id="comparison-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        <!-- JS fills this -->
+                    </div>
+                     <p id="no-comparison-text" class="text-center text-gray-500 py-8">You haven't saved any estimates yet. Calculate and save an estimate to compare it here.</p>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Modals -->
+    <div id="profile-modal" class="modal-overlay">
+        <div class="modal-content space-y-4">
+            <h3 id="profile-modal-title" class="text-xl font-bold"></h3>
+            <div id="profile-modal-body"></div>
+            <div class="flex justify-end gap-2">
+                <button id="profile-modal-cancel" class="bg-gray-200 text-gray-800 font-semibold py-2 px-4 rounded-lg">Cancel</button>
+                <button id="profile-modal-confirm" class="bg-green-600 text-white font-semibold py-2 px-4 rounded-lg"></button>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+    document.addEventListener('DOMContentLoaded', () => {
+        // --- DATA ---
+        const { jsPDF } = window.jspdf;
+        const countryData = {
+            'US': { name: 'United States', currency: '$', taxRate: 0.08, kgCO2perKwh: 0.37, tiers: [{ limit: 500, rate: 0.15 }, { limit: Infinity, rate: 0.20 }]},
+            'IN': { name: 'India', currency: '₹', taxRate: 0.0, kgCO2perKwh: 0.82, tiers: [{ limit: 100, rate: 4.5 }, { limit: 300, rate: 7.0 }, { limit: Infinity, rate: 8.5 }]},
+            'DE': { name: 'Germany', currency: '€', taxRate: 0.19, kgCO2perKwh: 0.34, tiers: [{ limit: Infinity, rate: 0.45 }]},
+            'GB': { name: 'United Kingdom', currency: '£', taxRate: 0.20, kgCO2perKwh: 0.21, tiers: [{ limit: Infinity, rate: 0.34 }]}
+        };
+        const applianceDB = {
+            "Television": 100, "Refrigerator": 150, "Air Conditioner": 1500, "Washing Machine": 500,
+            "Microwave Oven": 1200, "Ceiling Fan": 75, "LED Bulb": 10, "Laptop": 65, "Desktop Computer": 200,
+            "Water Heater": 3000, "Clothes Dryer": 3000, "Dishwasher": 1500, "Iron": 1100
+        };
+        const standardTipsDb = {
+            'High Consumption': { title: 'Address High-Wattage Appliances', impact: 'High', description: 'Appliances like water heaters, dryers, and air conditioners are major energy consumers. Reduce their usage time, use them during off-peak hours, or consider upgrading to more efficient models.' },
+            'Lighting': { title: 'Switch to LED Lighting', impact: 'Medium', description: 'If you still use incandescent or CFL bulbs, switching to LEDs can cut your lighting energy consumption by up to 80%.' },
+            'General': { title: 'Unplug Unused Electronics', impact: 'Low', description: 'Address phantom load by unplugging chargers, TVs, and game consoles when not in use, or use a smart power strip.' }
+        };
+         const efficiencyMultipliers = {
+            'standard': 0.7,
+            'efficient': 0.65,
+            'high_efficiency': 0.6
+        };
+
+        // --- STATE MANAGEMENT ---
+        let state = {
+            seasonalData: { annual: [], summer: [], winter: [] },
+            currentSeason: 'annual',
+            profiles: JSON.parse(localStorage.getItem('wattwise_profiles')) || {},
+            currentProfileName: 'Default',
+            savedEstimates: JSON.parse(localStorage.getItem('wattwise_estimates')) || [],
+            currentEstimateResult: {}
+        };
+
+        // --- UI ELEMENTS ---
+        const pages = document.querySelectorAll('.page');
+        const navButtons = document.querySelectorAll('.nav-btn');
+        const seasonalTabs = document.querySelectorAll('.tab-btn');
+        const countrySelect = document.getElementById('country');
+        const currencySymbolRate = document.getElementById('currency-symbol-rate');
+        const rateTiersContainer = document.getElementById('rate-tiers-container');
+        const applianceListContainer = document.getElementById('appliance-list');
+        const applianceSuggestions = document.getElementById('appliance-suggestions');
+        const errorMessage = document.getElementById('error-message');
+        const profileModal = document.getElementById('profile-modal');
+        const profileModalTitle = document.getElementById('profile-modal-title');
+        const profileModalBody = document.getElementById('profile-modal-body');
+        const profileModalConfirm = document.getElementById('profile-modal-confirm');
+        
+        // --- INITIALIZATION ---
+        function initialize() {
+            populateCountrySelect();
+            populateApplianceDatalist();
+            loadStateFromStorage();
+            renderApplianceList();
+            updateUIForCountry();
+            renderComparisonPage();
+            addEventListeners();
+            if (state.seasonalData.annual.length === 0) {
+                createApplianceRow();
+            }
+        }
+
+        function addEventListeners() {
+            navButtons.forEach(btn => btn.addEventListener('click', () => switchPage(btn.dataset.page)));
+            seasonalTabs.forEach(tab => tab.addEventListener('click', () => switchSeason(tab.dataset.season)));
+            countrySelect.addEventListener('change', updateUIForCountry);
+            document.getElementById('add-appliance-btn').addEventListener('click', () => createApplianceRow());
+            document.getElementById('add-tier-btn').addEventListener('click', () => { createRateTierRow(); manageTierInputs(); });
+            applianceListContainer.addEventListener('click', handleApplianceListClick);
+            rateTiersContainer.addEventListener('click', handleRateTiersClick);
+            applianceListContainer.addEventListener('input', handleApplianceNameInput);
+            document.getElementById('calculate-btn').addEventListener('click', handleCalculation);
+            document.getElementById('view-suggestions-btn').addEventListener('click', () => switchPage('suggestions-page'));
+            document.getElementById('view-savings-goal-btn').addEventListener('click', () => switchPage('savings-goal-page'));
+            document.getElementById('download-pdf-btn').addEventListener('click', downloadPDF);
+            document.getElementById('start-over-btn-results').addEventListener('click', () => switchPage('main-page'));
+            document.getElementById('back-to-results-btn').addEventListener('click', () => switchPage('results-page'));
+            document.getElementById('back-to-results-btn-from-goal').addEventListener('click', () => switchPage('results-page'));
+            document.getElementById('save-estimate-btn').addEventListener('click', openSaveEstimateModal);
+            document.getElementById('savings-goal-slider').addEventListener('input', updateSavingsGoalDisplay);
+            document.getElementById('save-profile-btn').addEventListener('click', openSaveProfileModal);
+            document.getElementById('load-profile-btn').addEventListener('click', openLoadProfileModal);
+            document.getElementById('profile-modal-cancel').addEventListener('click', () => profileModal.classList.remove('active'));
+        }
+
+        // --- PAGE & VIEW LOGIC ---
+        function switchPage(pageId) {
+            window.scrollTo(0, 0);
+            pages.forEach(page => page.classList.toggle('active', page.id === pageId));
+            navButtons.forEach(btn => {
+                btn.classList.toggle('border-green-600', btn.dataset.page === pageId);
+                btn.classList.toggle('text-green-600', btn.dataset.page === pageId);
+                btn.classList.toggle('border-transparent', btn.dataset.page !== pageId);
+                btn.classList.toggle('text-gray-500', btn.dataset.page !== pageId);
+            });
+            if (pageId === 'comparison-page') renderComparisonPage();
+        }
+        
+        function switchSeason(season) {
+            saveCurrentAppliances();
+            state.currentSeason = season;
+            seasonalTabs.forEach(tab => tab.classList.toggle('active', tab.dataset.season === season));
+            renderApplianceList();
+            if (!state.seasonalData[state.currentSeason] || state.seasonalData[state.currentSeason].length === 0) {
+                 createApplianceRow();
+            }
+        }
+
+        // --- STATE & LOCAL STORAGE ---
+        function loadStateFromStorage() {
+            const storedProfileName = localStorage.getItem('wattwise_currentProfile') || 'Default';
+            if (state.profiles[storedProfileName]) {
+                state.seasonalData = state.profiles[storedProfileName];
+                state.currentProfileName = storedProfileName;
+            } else {
+                 state.profiles[storedProfileName] = JSON.parse(JSON.stringify(state.seasonalData)); // Deep copy
+            }
+        }
+        
+        function saveStateToStorage() {
+            saveCurrentAppliances();
+            state.profiles[state.currentProfileName] = state.seasonalData;
+            localStorage.setItem('wattwise_profiles', JSON.stringify(state.profiles));
+            localStorage.setItem('wattwise_currentProfile', state.currentProfileName);
+            localStorage.setItem('wattwise_estimates', JSON.stringify(state.savedEstimates));
+        }
+
+        function saveCurrentAppliances() {
+            const currentList = [];
+            applianceListContainer.querySelectorAll('.appliance-item').forEach(item => {
+                const name = item.querySelector('.appliance-name').value.trim();
+                const wattage = item.querySelector('.appliance-wattage').value;
+                const rating = item.querySelector('.appliance-rating').value;
+                const hours = item.querySelector('.appliance-hours').value;
+                if(name || wattage || hours) { // Only save if there's some data
+                    currentList.push({ name, wattage, rating, hours });
+                }
+            });
+            state.seasonalData[state.currentSeason] = currentList;
+        }
+        
+        // --- UI RENDERING & UPDATES ---
+        function populateCountrySelect() {
+            for (const code in countryData) {
+                const option = document.createElement('option'); option.value = code; option.textContent = countryData[code].name;
+                countrySelect.appendChild(option);
+            }
+        }
+
+        function populateApplianceDatalist() {
+            for (const name in applianceDB) {
+                const option = document.createElement('option'); option.value = name;
+                applianceSuggestions.appendChild(option);
+            }
+        }
+        
+        function updateUIForCountry() {
+            const countryCode = countrySelect.value;
+            const data = countryData[countryCode];
+            currencySymbolRate.textContent = data.currency;
+            rateTiersContainer.innerHTML = '';
+            data.tiers.forEach(tier => createRateTierRow(tier.limit, tier.rate));
+            manageTierInputs();
+        }
+        
+        function renderApplianceList() {
+            applianceListContainer.innerHTML = '';
+            const currentList = state.seasonalData[state.currentSeason];
+            if (currentList && currentList.length > 0) {
+                currentList.forEach(app => createApplianceRow(app.name, app.wattage, app.rating, app.hours));
+            } else {
+                createApplianceRow();
+            }
+        }
+
+        function createApplianceRow(name = '', wattage = '', rating = 'standard', hours = '') {
+            const div = document.createElement('div');
+            div.className = 'appliance-item grid grid-cols-1 md:grid-cols-10 gap-3 items-center';
+            div.innerHTML = `
+                <input type="text" list="appliance-suggestions" placeholder="Appliance Name" class="appliance-name md:col-span-3 p-3 border rounded-lg" value="${name}">
+                <input type="number" placeholder="Wattage (W)" class="appliance-wattage md:col-span-2 p-3 border rounded-lg" value="${wattage}">
+                <select class="appliance-rating md:col-span-3 p-3 border rounded-lg">
+                    <option value="standard" ${rating === 'standard' ? 'selected' : ''}>Standard Efficiency</option>
+                    <option value="efficient" ${rating === 'efficient' ? 'selected' : ''}>Energy Efficient</option>
+                    <option value="high_efficiency" ${rating === 'high_efficiency' ? 'selected' : ''}>High Efficiency</option>
+                </select>
+                <input type="number" placeholder="Hrs/Day" class="appliance-hours md:col-span-1 p-3 border rounded-lg" value="${hours}" min="0" max="24" step="0.1">
+                <button class="remove-appliance md:col-span-1 bg-red-500 text-white p-3 rounded-lg font-bold">X</button>
+            `;
+            applianceListContainer.appendChild(div);
+        }
+        
+        function createRateTierRow(limit = '', rate = '') {
+            const div = document.createElement('div');
+            div.className = 'rate-tier-item flex items-center gap-2';
+            const isInfinite = limit === Infinity || limit === 'Infinity';
+            div.innerHTML = `
+                <span class="text-sm">Up to</span>
+                <input type="number" placeholder="kWh limit" class="rate-limit p-2 border rounded-lg w-full" value="${isInfinite ? '' : limit}">
+                <span class="text-sm">kWh @</span>
+                <input type="number" placeholder="Rate" class="rate-value p-2 border rounded-lg w-full" value="${rate}" step="0.01">
+                <button class="remove-tier text-red-500 font-bold p-2">X</button>
+            `;
+            rateTiersContainer.appendChild(div);
+        }
+        
+        function manageTierInputs() {
+            const tiers = Array.from(rateTiersContainer.children);
+            tiers.forEach((tier, index) => {
+                const limitInput = tier.querySelector('.rate-limit');
+                const removeBtn = tier.querySelector('.remove-tier');
+                
+                limitInput.disabled = (index === tiers.length - 1);
+                removeBtn.style.display = (tiers.length > 1) ? 'block' : 'none';
+
+                if (limitInput.disabled) {
+                    limitInput.value = '';
+                    limitInput.placeholder = 'And up';
+                } else {
+                    limitInput.placeholder = 'kWh limit';
+                }
+            });
+        }
+
+        // --- EVENT HANDLERS ---
+        function handleApplianceListClick(e) {
+            if (e.target.classList.contains('remove-appliance')) {
+                if (applianceListContainer.children.length > 1) {
+                    e.target.closest('.appliance-item').remove();
+                }
+            }
+        }
+
+        function handleRateTiersClick(e) {
+            if (e.target.classList.contains('remove-tier')) {
+                 if (rateTiersContainer.children.length > 1) {
+                    e.target.closest('.rate-tier-item').remove();
+                    manageTierInputs();
+                 }
+            }
+        }
+
+        function handleApplianceNameInput(e) {
+            if (e.target.classList.contains('appliance-name')) {
+                const name = e.target.value;
+                if (applianceDB[name]) {
+                    const wattageInput = e.target.closest('.appliance-item').querySelector('.appliance-wattage');
+                    wattageInput.value = applianceDB[name];
+                }
+            }
+        }
+
+        // --- CALCULATION LOGIC ---
+        async function handleCalculation() {
+            errorMessage.classList.add('hidden');
+            let isValid = true;
+            
+            saveCurrentAppliances();
+            const appliances = state.seasonalData[state.currentSeason].filter(a => a.name && a.wattage > 0 && a.hours >= 0 && a.hours <= 24);
+
+            const tiers = Array.from(document.querySelectorAll('.rate-tier-item')).map(item => {
+                const limit = parseFloat(item.querySelector('.rate-limit').value) || Infinity;
+                const rate = parseFloat(item.querySelector('.rate-value').value);
+                if(isNaN(rate)) isValid = false;
+                return { limit, rate };
+            }).sort((a,b) => a.limit - b.limit);
+
+            if (appliances.length === 0 || !isValid) {
+                errorMessage.textContent = 'Please fill all fields correctly for at least one appliance and all rate tiers.';
+                errorMessage.classList.remove('hidden');
+                return;
+            }
+
+            switchPage('results-page');
+            document.getElementById('progress-container').style.display = 'block';
+            document.getElementById('results-display').classList.add('hidden');
+            
+            setTimeout(() => {
+                const calculationResult = calculateBill(appliances, tiers);
+                state.currentEstimateResult = { ...calculationResult, date: new Date().toISOString() };
+                renderResults(state.currentEstimateResult);
+                
+                document.getElementById('progress-container').style.display = 'none';
+                document.getElementById('results-display').classList.remove('hidden');
+                
+                generateStandardSuggestions(appliances);
+            }, 2000);
+        }
+
+        function calculateBill(appliances, tiers) {
+            let totalKwh = 0;
+            const breakdown = [];
+
+            // Phantom Load
+            let phantomWattage = 0;
+            document.querySelectorAll('.phantom-device:checked').forEach(d => phantomWattage += parseFloat(d.value));
+            if(phantomWattage > 0) {
+                 appliances.push({name: "Phantom Load", wattage: phantomWattage, rating: 'standard', hours: 24});
+            }
+
+            appliances.forEach(app => {
+                const multiplier = efficiencyMultipliers[app.rating] || 1;
+                const monthlyKwh = (app.wattage * app.hours * 30 / 1000) * multiplier;
+                totalKwh += monthlyKwh;
+                breakdown.push({ name: app.name, kwh: monthlyKwh });
+            });
+            
+            let subtotal = 0;
+            let kwhRemaining = totalKwh;
+            let lastLimit = 0;
+            for(const tier of tiers) {
+                const kwhInTier = Math.min(kwhRemaining, tier.limit - lastLimit);
+                subtotal += kwhInTier * tier.rate;
+                kwhRemaining -= kwhInTier;
+                lastLimit = tier.limit;
+                if(kwhRemaining <= 0) break;
+            }
+
+            const countryCode = countrySelect.value;
+            const taxRate = countryData[countryCode].taxRate;
+            const tax = subtotal * taxRate;
+            const totalBill = subtotal + tax;
+
+            if(totalKwh > 0){
+                breakdown.forEach(item => {
+                    item.cost = (item.kwh / totalKwh) * subtotal;
+                });
+            }
+
+            return { subtotal, tax, totalBill, breakdown, taxRate, currency: countryData[countryCode].currency, totalKwh, countryCode };
+        }
+        
+        // --- RENDER RESULTS ---
+        function renderResults({ subtotal, tax, totalBill, breakdown, taxRate, currency, totalKwh, countryCode }) {
+            document.getElementById('subtotal-bill').textContent = `${currency}${subtotal.toFixed(2)}`;
+            const taxRow = document.getElementById('tax-row');
+            if (taxRate > 0) {
+                taxRow.style.display = 'flex';
+                document.getElementById('tax-rate-display').textContent = (taxRate * 100).toFixed(0);
+                document.getElementById('tax-amount').textContent = `${currency}${tax.toFixed(2)}`;
+            } else {
+                taxRow.style.display = 'none';
+            }
+            document.getElementById('estimated-bill').textContent = `${currency}${totalBill.toFixed(2)}`;
+            document.getElementById('carbon-footprint').textContent = `${(totalKwh * countryData[countryCode].kgCO2perKwh).toFixed(2)} kg CO₂`;
+            
+            setupSavingsGoal(totalBill, currency);
+            renderDetailedBreakdown(breakdown, currency);
+        }
+        
+        function renderDetailedBreakdown(breakdown, currency) {
+            const container = document.getElementById('bill-breakdown-container');
+            let tableHTML = `
+                <table class="w-full text-left table-auto">
+                    <thead>
+                        <tr class="bg-slate-100">
+                            <th class="p-3 font-semibold">Appliance</th>
+                            <th class="p-3 font-semibold text-right">Consumption (kWh)</th>
+                            <th class="p-3 font-semibold text-right">Estimated Cost</th>
+                        </tr>
+                    </thead>
+                    <tbody>`;
+            
+            breakdown.sort((a,b) => b.cost - a.cost).forEach(item => {
+                tableHTML += `
+                    <tr class="border-b">
+                        <td class="p-3">${item.name}</td>
+                        <td class="p-3 text-right">${item.kwh.toFixed(1)}</td>
+                        <td class="p-3 text-right font-medium">${currency}${item.cost.toFixed(2)}</td>
+                    </tr>
+                `;
+            });
+
+            tableHTML += `</tbody></table>`;
+            container.innerHTML = tableHTML;
+        }
+        
+        // --- SAVINGS & SUGGESTIONS ---
+        function setupSavingsGoal(totalBill, currency) {
+            const slider = document.getElementById('savings-goal-slider');
+            const min = Math.floor(totalBill * 0.7);
+            const max = Math.ceil(totalBill * 1.3);
+            slider.min = min;
+            slider.max = max;
+            slider.value = Math.floor(totalBill * 0.9);
+            document.getElementById('savings-goal-min').textContent = `${currency}${min}`;
+            document.getElementById('savings-goal-max').textContent = `${currency}${max}`;
+            updateSavingsGoalDisplay();
+        }
+
+        function updateSavingsGoalDisplay() {
+            const slider = document.getElementById('savings-goal-slider');
+            const goalValue = parseFloat(slider.value);
+            const currency = countryData[countrySelect.value].currency;
+            document.getElementById('savings-goal-value').textContent = `${currency}${goalValue.toFixed(2)}`;
+            
+            const totalBill = state.currentEstimateResult.totalBill;
+            const goalPercent = ((totalBill - slider.min) / (slider.max - slider.min)) * 100;
+            document.getElementById('savings-goal-bar').style.width = `${goalPercent}%`;
+            
+            const markerPercent = ((goalValue - slider.min) / (slider.max - slider.min)) * 100;
+            document.getElementById('savings-goal-marker').style.left = `${markerPercent}%`;
+            const statusEl = document.getElementById('savings-status');
+
+            if(totalBill <= goalValue) {
+                document.getElementById('savings-goal-bar').classList.remove('bg-red-500');
+                document.getElementById('savings-goal-bar').classList.add('bg-green-500');
+                statusEl.textContent = `You are on track to meet your goal!`;
+                statusEl.className = 'text-center font-semibold pt-2 text-green-600';
+            } else {
+                document.getElementById('savings-goal-bar').classList.remove('bg-green-500');
+                document.getElementById('savings-goal-bar').classList.add('bg-red-500');
+                statusEl.textContent = `You are currently over your budget goal.`;
+                statusEl.className = 'text-center font-semibold pt-2 text-red-600';
+            }
+        }
+        
+        function generateStandardSuggestions(appliances) {
+            const suggestionsList = document.getElementById('suggestions-list');
+            suggestionsList.innerHTML = '';
+            const tips = new Set();
+            
+            if (appliances.some(app => app.wattage > 1500)) {
+                tips.add(standardTipsDb['High Consumption']);
+            }
+            if (appliances.some(app => app.name.toLowerCase().includes('bulb') || app.name.toLowerCase().includes('light'))) {
+                 tips.add(standardTipsDb['Lighting']);
+            }
+            tips.add(standardTipsDb['General']);
+
+            tips.forEach(tip => {
+                const impactColor = tip.impact === 'High' ? 'bg-red-100 text-red-800' : 'bg-yellow-100 text-yellow-800';
+                const tipEl = document.createElement('div');
+                tipEl.className = 'bg-gray-50 p-4 rounded-lg border';
+                tipEl.innerHTML = `
+                    <div class="flex justify-between items-center">
+                        <h4 class="text-lg font-semibold">${tip.title}</h4>
+                        <span class="text-sm font-medium px-2.5 py-0.5 rounded-full ${impactColor}">${tip.impact} Impact</span>
+                    </div>
+                    <p class="mt-2 text-gray-600">${tip.description}</p>`;
+                suggestionsList.appendChild(tipEl);
+            });
+        }
+
+        // --- PROFILE & ESTIMATE MANAGEMENT ---
+        function openSaveEstimateModal() {
+            profileModalTitle.textContent = "Save Estimate";
+            profileModalBody.innerHTML = `<p>Enter a name for this estimate (e.g., "Baseline", "With New Fridge").</p><input type="text" id="estimate-name-input" class="w-full p-2 border rounded-lg mt-2" placeholder="Estimate Name">`;
+            profileModalConfirm.textContent = "Save";
+            profileModal.classList.add('active');
+            
+            profileModalConfirm.onclick = () => {
+                const name = document.getElementById('estimate-name-input').value.trim();
+                if(name) {
+                    state.currentEstimateResult.name = name;
+                    state.savedEstimates.push(state.currentEstimateResult);
+                    saveStateToStorage();
+                    profileModal.classList.remove('active');
+                    renderComparisonPage();
+                }
+            };
+        }
+        
+        function renderComparisonPage() {
+            const container = document.getElementById('comparison-container');
+            const noItemsText = document.getElementById('no-comparison-text');
+            container.innerHTML = '';
+
+            if(state.savedEstimates.length === 0) {
+                noItemsText.style.display = 'block';
+                return;
+            }
+            noItemsText.style.display = 'none';
+
+            state.savedEstimates.forEach((est, index) => {
+                const card = document.createElement('div');
+                card.className = 'bg-slate-50 p-4 rounded-lg border space-y-2';
+                card.innerHTML = `
+                    <div class="flex justify-between items-center">
+                        <h3 class="font-bold text-lg">${est.name}</h3>
+                        <button data-index="${index}" class="delete-estimate text-red-500 hover:text-red-700">X</button>
+                    </div>
+                    <p class="text-sm text-gray-500">${new Date(est.date).toLocaleDateString()}</p>
+                    <p class="text-2xl font-bold text-green-700">${est.currency}${est.totalBill.toFixed(2)}</p>
+                    <p class="text-sm text-gray-600">${est.totalKwh.toFixed(0)} kWh/month</p>
+                `;
+                container.appendChild(card);
+            });
+            container.querySelectorAll('.delete-estimate').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    const index = e.target.dataset.index;
+                    state.savedEstimates.splice(index, 1);
+                    saveStateToStorage();
+                    renderComparisonPage();
+                });
+            });
+        }
+        
+        function openSaveProfileModal() {
+             profileModalTitle.textContent = "Save Profile";
+             profileModalBody.innerHTML = `<p>Enter a name for your current household profile.</p><input type="text" id="profile-name-input" class="w-full p-2 border rounded-lg mt-2" value="${state.currentProfileName}">`;
+             profileModalConfirm.textContent = "Save";
+             profileModal.classList.add('active');
+
+             profileModalConfirm.onclick = () => {
+                 const name = document.getElementById('profile-name-input').value.trim();
+                 if (name) {
+                     saveCurrentAppliances();
+                     state.currentProfileName = name;
+                     saveStateToStorage();
+                     profileModal.classList.remove('active');
+                 }
+             };
+        }
+
+        function openLoadProfileModal() {
+             profileModalTitle.textContent = "Load Profile";
+             let profileListHTML = '<p class="mb-2">Select a profile to load:</p>';
+             if(Object.keys(state.profiles).length > 0) {
+                profileListHTML += `<div class="space-y-2">`;
+                for (const name in state.profiles) {
+                    profileListHTML += `<div class="flex justify-between items-center p-2 border rounded-lg"><label class="flex items-center gap-2"><input type="radio" name="profile" value="${name}" ${name === state.currentProfileName ? 'checked' : ''}>${name}</label><button data-name="${name}" class="delete-profile text-red-500 text-sm">Delete</button></div>`;
+                }
+                 profileListHTML += `</div>`;
+             } else {
+                profileListHTML = '<p>No saved profiles found.</p>';
+             }
+             profileModalBody.innerHTML = profileListHTML;
+             profileModalConfirm.textContent = "Load";
+             profileModal.classList.add('active');
+
+             profileModalBody.querySelectorAll('.delete-profile').forEach(button => {
+                button.addEventListener('click', (e) => {
+                    const nameToDelete = e.target.dataset.name;
+                    if(nameToDelete && nameToDelete !== 'Default') {
+                        delete state.profiles[nameToDelete];
+                        saveStateToStorage();
+                        openLoadProfileModal(); // Re-render modal
+                    }
+                });
+             });
+
+             profileModalConfirm.onclick = () => {
+                 const selected = profileModalBody.querySelector('input[name="profile"]:checked');
+                 if (selected) {
+                     state.currentProfileName = selected.value;
+                     localStorage.setItem('wattwise_currentProfile', state.currentProfileName);
+                     loadStateFromStorage();
+                     renderApplianceList();
+                     profileModal.classList.remove('active');
+                 }
+             };
+        }
+        
+        function downloadPDF() {
+            const { jsPDF } = window.jspdf;
+            const content = document.getElementById('results-content');
+            const pdf = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4' });
+            
+            pdf.setFontSize(22);
+            pdf.text("WattWise Energy Estimate", pdf.internal.pageSize.getWidth() / 2, 15, { align: 'center' });
+
+            html2canvas(content, { scale: 2 }).then(canvas => {
+                const imgData = canvas.toDataURL('image/png');
+                const pdfWidth = pdf.internal.pageSize.getWidth() - 20;
+                const imgProps = pdf.getImageProperties(imgData);
+                const imgHeight = (imgProps.height * pdfWidth) / imgProps.width;
+                pdf.addImage(imgData, 'PNG', 10, 25, pdfWidth, imgHeight);
+                pdf.save('WattWise-Estimate.pdf');
+            });
+        }
+        
+        initialize();
+    });
+    </script>
+</body>
+</html>
+
