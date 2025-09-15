@@ -17,7 +17,12 @@
         .page.active { display: block; opacity: 1; }
         @keyframes progress-animation { from { width: 0%; } to { width: 100%; } }
         .progress-bar-inner { animation: progress-animation 2s ease-out forwards; }
-        .gradient-text { background: linear-gradient(to right, #228B22, #006400); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        .gradient-text { 
+            background: linear-gradient(to right, #228B22, #006400); 
+            -webkit-background-clip: text; 
+            background-clip: text;
+            -webkit-text-fill-color: transparent; 
+        }
         .btn-primary { background-image: linear-gradient(to right, #228B22, #006400); }
         .tab-btn { transition: all 0.3s ease; }
         .tab-btn.active { border-color: #228B22; background-color: #f0fff4; color: #228B22; font-weight: 600; }
